@@ -21,25 +21,9 @@ function JobFactory(data) {
 }
 
 JobFactory.find = async (query) => {
+    // db.Job.find returns a thenable that resolves to an array
     const res = await db.Job.find(query);
-    if (res.sort) {
-        const originalSort = res.sort;
-        res.sort = (spec) => {
-            const sorted = originalSort(spec);
-            const originalLimit = sorted.limit;
-            sorted.limit = (n) => {
-                const limited = originalLimit(n);
-                return limited.map(i => JobFactory(i));
-            };
-            return sorted;
-        };
-        // Also handle direct .then() if no sorting/limiting is called last
-        const originalThen = res.then;
-        res.then = (fn) => originalThen((items) => fn(items.map(i => JobFactory(i))));
-    } else {
-        return res.map(i => JobFactory(i));
-    }
-    return res;
+    return res.map(i => JobFactory(i));
 };
 
 JobFactory.findById = async (id) => {

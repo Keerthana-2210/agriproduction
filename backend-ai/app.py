@@ -43,5 +43,40 @@ def predict_yield():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/predict-spoilage', methods=['POST'])
+def predict_spoilage():
+    try:
+        data = request.json
+        # Inputs: storage_temperature, storage_humidity, crop_type
+        temp = data.get('temperature', 25)
+        humidity = data.get('humidity', 60)
+        
+        # Mock logic: Spoilage risk increases if temp > 30 or humidity > 75
+        risk_score = 0
+        if temp > 30:
+            risk_score += (temp - 30) * 2
+        if humidity > 75:
+            risk_score += (humidity - 75) * 1.5
+            
+        if risk_score > 20:
+            risk_level = "High"
+            alert = "Warning: High risk of fungal growth and spoilage. Decrease temperature and humidity immediately."
+        elif risk_score > 10:
+            risk_level = "Medium"
+            alert = "Caution: Sub-optimal storage conditions. Monitor closely."
+        else:
+            risk_level = "Low"
+            alert = "Storage conditions are optimal. No immediate risk."
+
+        return jsonify({
+            'risk_level': risk_level,
+            'risk_score': round(risk_score, 2),
+            'alert': alert,
+            'status': 'success'
+        })
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(port=5001, debug=True)

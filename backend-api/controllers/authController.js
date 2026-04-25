@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, role, location, phone } = req.body;
+        const { name, password, role, location, phone } = req.body;
+        const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
         // Check if user exists
         let user = await User.findOne({ email });
@@ -38,12 +39,13 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        const cleanEmail = email.toLowerCase().trim();
 
-        const user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) return res.status(400).json({ message: 'Email not found' });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+        if (!isMatch) return res.status(400).json({ message: 'Incorrect password' });
 
         const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
 

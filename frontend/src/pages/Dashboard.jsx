@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import SensorChart from '../components/SensorChart';
-import { Activity, Briefcase, TrendingUp, Droplets, Thermometer, Wind, AlertCircle, Info, Sparkles } from 'lucide-react';
+import { Activity, Briefcase, TrendingUp, Droplets, Thermometer, Wind, AlertCircle, Info, Sparkles, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Dashboard = () => {
@@ -10,6 +10,10 @@ const Dashboard = () => {
     const [sensorData, setSensorData] = useState([]);
     const [jobs, setJobs] = useState([]);
     const [prediction, setPrediction] = useState(null);
+    const [spoilageAlert, setSpoilageAlert] = useState(null);
+    const [showJobForm, setShowJobForm] = useState(false);
+    const [editingJobId, setEditingJobId] = useState(null);
+    const [jobForm, setJobForm] = useState({ title: '', description: '', location: '', salary: '', type: 'Harvesting', contact: '' });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -18,6 +22,8 @@ const Dashboard = () => {
                 if (user.role === 'farmer') {
                     const res = await axios.get('http://localhost:5000/api/sensors');
                     setSensorData(res.data);
+                    const jobsRes = await axios.get('http://localhost:5000/api/jobs');
+                    setJobs(jobsRes.data.filter(j => j.employerId === user.id || j.employerId === user._id));
                 } else {
                     const res = await axios.get('http://localhost:5000/api/jobs');
                     setJobs(res.data);
@@ -49,6 +55,58 @@ const Dashboard = () => {
         }
     };
 
+    const handleSpoilageCheck = async () => {
+        if (sensorData.length === 0) return;
+        const latest = sensorData[0];
+        try {
+            const res = await axios.post('http://localhost:5001/predict-spoilage', {
+                temperature: latest.temperature,
+                humidity: latest.humidity
+            });
+            setSpoilageAlert(res.data);
+        } catch (err) {
+            console.error('Spoilage prediction failed', err);
+        }
+    };
+
+    const handlePostJob = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingJobId) {
+                await axios.put(`http://localhost:5000/api/jobs/${editingJobId}`, jobForm);
+                alert('Job updated successfully!');
+            } else {
+                await axios.post('http://localhost:5000/api/jobs', jobForm);
+                alert('Job posted successfully!');
+            }
+            setShowJobForm(false);
+            setEditingJobId(null);
+            setJobForm({ title: '', description: '', location: '', salary: '', type: 'Harvesting', contact: '' });
+            const jobsRes = await axios.get('http://localhost:5000/api/jobs');
+            setJobs(jobsRes.data.filter(j => j.employerId === user.id || j.employerId === user._id));
+        } catch (err) {
+            console.error('Failed to save job', err);
+            alert(`Failed to save job: ${err.response?.data?.message || err.message}`);
+        }
+    };
+
+    const handleEditJob = (job) => {
+        setEditingJobId(job._id);
+        setJobForm({ title: job.title, description: job.description, location: job.location, salary: job.salary, type: job.type, contact: job.contact || '' });
+        setShowJobForm(true);
+    };
+
+    const handleApply = async (jobId) => {
+        try {
+            await axios.post(`http://localhost:5000/api/jobs/${jobId}/apply`);
+            alert('Application submitted successfully!');
+            const res = await axios.get('http://localhost:5000/api/jobs');
+            setJobs(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to apply');
+        }
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center min-h-[60vh]">
             <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-slow-spin shadow-[0_0_30px_rgba(16,185,129,0.3)]" />
@@ -74,19 +132,93 @@ const Dashboard = () => {
                     </p>
                 </div>
                 {user.role === 'farmer' && (
-                    <button 
-                        onClick={handlePredict} 
-                        className="btn-primary shadow-[0_0_30px_rgba(16,185,129,0.3)] py-4 px-8 group"
-                    >
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap gap-4">
+                        <button 
+                            onClick={() => {
+                                setEditingJobId(null);
+                                setJobForm({ title: '', description: '', location: '', salary: '', type: 'Harvesting', contact: '' });
+                                setShowJobForm(true);
+                            }} 
+                            className="btn-secondary shadow-[0_0_20px_rgba(59,130,246,0.2)] border border-blue-500/50 text-blue-400 py-4 px-6 group flex items-center gap-2 rounded-2xl hover:bg-blue-500/10 transition-all"
+                        >
+                            <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                            Post Job
+                        </button>
+                        <button 
+                            onClick={handleSpoilageCheck} 
+                            className="btn-secondary shadow-[0_0_20px_rgba(245,158,11,0.2)] border border-amber-500/50 text-amber-400 py-4 px-6 group flex items-center gap-2 rounded-2xl hover:bg-amber-500/10 transition-all"
+                        >
+                            <Thermometer size={20} className="group-hover:scale-110 transition-transform" />
+                            Post-Harvest Monitoring
+                        </button>
+                        <button 
+                            onClick={handlePredict} 
+                            className="btn-primary shadow-[0_0_30px_rgba(16,185,129,0.3)] py-4 px-8 group rounded-2xl flex items-center gap-3"
+                        >
                             <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
                             Run AI Yield Analysis
-                        </div>
-                    </button>
+                        </button>
+                    </div>
                 )}
             </header>
 
             <AnimatePresence>
+                {showJobForm && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.95 }}
+                            className="glass p-8 max-w-md w-full relative border border-white/10"
+                        >
+                            <button onClick={() => setShowJobForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+                                <X size={24} />
+                            </button>
+                            <h2 className="text-2xl font-black mb-6">{editingJobId ? 'Edit Farm Job' : 'Post a Farm Job'}</h2>
+                            <form onSubmit={handlePostJob} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-1">Job Title</label>
+                                    <input required type="text" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="e.g. Need 5 harvesters" value={jobForm.title} onChange={e => setJobForm({...jobForm, title: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-1">Description</label>
+                                    <textarea required className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Details about the work..." rows="3" value={jobForm.description} onChange={e => setJobForm({...jobForm, description: e.target.value})}></textarea>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Location</label>
+                                        <input required type="text" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Farm location" value={jobForm.location} onChange={e => setJobForm({...jobForm, location: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Contact Phone</label>
+                                        <input required type="text" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="e.g. 9876543210" value={jobForm.contact} onChange={e => setJobForm({...jobForm, contact: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Wages/Salary</label>
+                                        <input required type="text" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="₹500/day" value={jobForm.salary} onChange={e => setJobForm({...jobForm, salary: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Type</label>
+                                        <select className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" value={jobForm.type} onChange={e => setJobForm({...jobForm, type: e.target.value})}>
+                                            <option>Harvesting</option>
+                                            <option>Irrigation</option>
+                                            <option>Fertilizer</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full btn-primary py-4 rounded-xl mt-4 font-black">{editingJobId ? 'Save Changes' : 'Post Job'}</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
                 {prediction && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
@@ -112,6 +244,29 @@ const Dashboard = () => {
                            <div className="px-8 py-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 text-white font-black text-xs tracking-widest">
                                 HIGH CONFIDENCE
                            </div>
+                        </div>
+                    </motion.div>
+                )}
+                {spoilageAlert && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={`glass p-10 border-${spoilageAlert.risk_level === 'High' ? 'red' : spoilageAlert.risk_level === 'Medium' ? 'amber' : 'emerald'}-500/40 flex flex-col md:flex-row justify-between items-center bg-gradient-to-r from-${spoilageAlert.risk_level === 'High' ? 'red' : spoilageAlert.risk_level === 'Medium' ? 'amber' : 'emerald'}-500/20 via-transparent to-transparent overflow-hidden relative group mt-4`}
+                    >
+                        <div className="absolute right-0 top-0 text-white/5 -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700">
+                            <AlertCircle size={300} />
+                        </div>
+                        <div className="z-10">
+                            <div className={`flex items-center gap-2 text-${spoilageAlert.risk_level === 'High' ? 'red' : spoilageAlert.risk_level === 'Medium' ? 'amber' : 'emerald'}-400 font-bold text-sm mb-4 tracking-widest uppercase`}>
+                                <Thermometer size={16} /> Post-Harvest Storage Analysis
+                            </div>
+                            <h2 className="text-4xl font-black mb-3">
+                                Spoilage Risk: <span className={`text-${spoilageAlert.risk_level === 'High' ? 'red' : spoilageAlert.risk_level === 'Medium' ? 'amber' : 'emerald'}-400`}>{spoilageAlert.risk_level}</span>
+                            </h2>
+                            <p className="text-slate-300 text-xl max-w-xl leading-relaxed">
+                                {spoilageAlert.alert}
+                            </p>
                         </div>
                     </motion.div>
                 )}
@@ -191,6 +346,55 @@ const Dashboard = () => {
                             </div>
                         </div>
                     </div>
+
+                    <div className="lg:col-span-12 mt-8">
+                        <h3 className="text-2xl font-black mb-6 flex items-center gap-3">
+                            <Briefcase size={28} className="text-blue-500" />
+                            Your Posted Jobs
+                        </h3>
+                        {jobs.length === 0 ? (
+                            <div className="glass p-8 text-center text-slate-400 border-white/5">
+                                You haven't posted any jobs yet.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {jobs.map((job) => (
+                                    <motion.div 
+                                        key={job._id}
+                                        className="glass p-8 flex flex-col border-white/5 hover:border-blue-500/30 transition-all"
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border border-blue-500/20">
+                                                {job.type}
+                                            </span>
+                                            <span className="text-slate-500 text-xs">{job.applicants?.length || 0} applicants</span>
+                                        </div>
+                                        <h3 className="text-xl font-black mb-2">{job.title}</h3>
+                                        <p className="text-slate-400 mb-6 text-sm line-clamp-2">{job.description}</p>
+                                        
+                                        {job.applicants && job.applicants.length > 0 && (
+                                            <div className="mb-6 bg-slate-900/50 rounded-xl p-3 border border-white/5 max-h-32 overflow-y-auto">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Applicants</h4>
+                                                <div className="space-y-2">
+                                                    {job.applicants.map(app => (
+                                                        <div key={app._id || app} className="flex justify-between items-center bg-white/5 px-3 py-2 rounded-lg">
+                                                            <span className="text-sm text-white font-bold">{app.name || 'Unknown User'}</span>
+                                                            <span className="text-xs text-emerald-400 font-bold">{app.phone || 'No Phone'}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="mt-auto pt-4 border-t border-white/10 flex justify-between items-center">
+                                            <span className="text-emerald-400 font-bold">{job.salary}</span>
+                                            <button onClick={() => handleEditJob(job)} className="text-blue-400 hover:text-white font-bold text-sm bg-white/5 px-4 py-2 rounded-xl">Edit Job</button>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -217,9 +421,14 @@ const Dashboard = () => {
                                 <div>
                                     <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Package</span>
                                     <span className="text-2xl font-black text-emerald-400">{job.salary}</span>
+                                    {job.contact && <span className="block text-xs mt-1 text-slate-400 font-bold"><span className="text-slate-500 font-normal">Contact:</span> {job.contact}</span>}
                                 </div>
-                                <button className="btn-primary px-8 py-3 rounded-2xl font-black shadow-lg shadow-emerald-500/20">
-                                    Apply
+                                <button 
+                                    onClick={() => handleApply(job._id)}
+                                    disabled={job.applicants?.some(a => (a._id || a) === user.id)}
+                                    className={`px-8 py-3 rounded-2xl font-black shadow-lg transition-all ${job.applicants?.some(a => (a._id || a) === user.id) ? 'bg-slate-700/50 text-slate-400 cursor-not-allowed' : 'btn-primary shadow-emerald-500/20 hover:-translate-y-1'}`}
+                                >
+                                    {job.applicants?.some(a => (a._id || a) === user.id) ? 'Applied' : 'Apply'}
                                 </button>
                             </div>
                         </motion.div>

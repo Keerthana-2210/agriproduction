@@ -20,7 +20,9 @@ exports.logData = async (req, res) => {
 
 exports.getLatestData = async (req, res) => {
     try {
-        let data = await SensorData.find({ farmerId: req.user.id }).sort({ timestamp: -1 }).limit(10);
+        let data = await SensorData.find({ farmerId: req.user.id });
+        data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        data = data.slice(0, 10);
         
         // Smart Demo Fallback: If no data exists for this user, return sample historical data
         if (data.length === 0) {
