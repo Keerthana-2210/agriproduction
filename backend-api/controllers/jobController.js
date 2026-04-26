@@ -48,6 +48,8 @@ exports.applyForJob = async (req, res) => {
         const job = await Job.findById(req.params.id);
         if (!job) return res.status(404).json({ message: 'Job not found' });
 
+        if (!job.applicants) job.applicants = [];
+
         if (job.applicants.includes(req.user.id)) {
             return res.status(400).json({ message: 'Already applied' });
         }
