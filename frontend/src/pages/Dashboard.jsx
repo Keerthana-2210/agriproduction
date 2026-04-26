@@ -4,7 +4,7 @@ import axios from 'axios';
 import SensorChart from '../components/SensorChart';
 import ProfitSimulator from '../components/ProfitSimulator';
 import FarmingChatbot from '../components/FarmingChatbot';
-import { Activity, Briefcase, TrendingUp, Droplets, Thermometer, Wind, AlertCircle, Info, Sparkles, Plus, X } from 'lucide-react';
+import { Activity, Briefcase, TrendingUp, Droplets, Thermometer, Wind, AlertCircle, Info, Sparkles, Plus, X, MapPin, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Dashboard = () => {
@@ -20,28 +20,64 @@ const Dashboard = () => {
     const [nearbyOnly, setNearbyOnly] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [profileLoc, setProfileLoc] = useState('');
+    const [showWeatherForm, setShowWeatherForm] = useState(false);
+    const [weatherLoc, setWeatherLoc] = useState('');
+    const [showManualLogForm, setShowManualLogForm] = useState(false);
+    const [manualLog, setManualLog] = useState({ soilPh: 7, moisture: 50, temperature: 25, humidity: 50, n: 50, p: 50, k: 50 });
+
+    const fetchData = async () => {
+        if (!user) return;
+        try {
+            if (user.role === 'farmer') {
+                const res = await axios.get('http://localhost:5000/api/sensors');
+                setSensorData(res.data);
+                const jobsRes = await axios.get('http://localhost:5000/api/jobs');
+                setJobs(jobsRes.data.filter(j => j.employerId === user.id || j.employerId === user._id));
+            } else {
+                const res = await axios.get('http://localhost:5000/api/jobs');
+                setJobs(res.data);
+            }
+        } catch (err) {
+            console.error('Error fetching dashboard data', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            if (!user) return;
-            try {
-                if (user.role === 'farmer') {
-                    const res = await axios.get('http://localhost:5000/api/sensors');
-                    setSensorData(res.data);
-                    const jobsRes = await axios.get('http://localhost:5000/api/jobs');
-                    setJobs(jobsRes.data.filter(j => j.employerId === user.id || j.employerId === user._id));
-                } else {
-                    const res = await axios.get('http://localhost:5000/api/jobs');
-                    setJobs(res.data);
-                }
-            } catch (err) {
-                console.error('Error fetching dashboard data', err);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchData();
     }, [user]);
+
+    const handleFetchWeather = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:5000/api/sensors/weather', { location: weatherLoc });
+            setShowWeatherForm(false);
+            setWeatherLoc('');
+            alert('Weather data fetched and logged!');
+            fetchData();
+        } catch (err) {
+            alert('Failed to fetch weather: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
+    const handleManualLog = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:5000/api/sensors', {
+                soilPh: manualLog.soilPh,
+                moisture: manualLog.moisture,
+                temperature: manualLog.temperature,
+                humidity: manualLog.humidity,
+                npk: { n: manualLog.n, p: manualLog.p, k: manualLog.k }
+            });
+            setShowManualLogForm(false);
+            alert('Manual field data logged successfully!');
+            fetchData();
+        } catch (err) {
+            alert('Failed to log data: ' + (err.response?.data?.message || err.message));
+        }
+    };
 
     const handlePredict = async () => {
         if (sensorData.length === 0) return;
@@ -142,6 +178,11 @@ const Dashboard = () => {
                                 <Info size={12} /> DEMO MODE
                             </span>
                         )}
+                        {sensorData.length === 0 && user.role === 'farmer' && (
+                            <span className="px-3 py-1 bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold rounded-full flex items-center gap-1">
+                                <AlertCircle size={12} /> NO SENSOR DATA
+                            </span>
+                        )}
                     </div>
                     <p className="text-slate-400">
                         Operational overview for <span className="text-emerald-400 font-bold underline decoration-emerald-500/30">{user.name}</span>
@@ -176,9 +217,101 @@ const Dashboard = () => {
                         </button>
                     </div>
                 )}
+                {user.role === 'farmer' && (
+                    <div className="flex flex-wrap gap-4 mt-4 w-full">
+                        <button 
+                            onClick={() => setShowWeatherForm(true)} 
+                            className="bg-sky-500/10 border border-sky-500/30 text-sky-400 py-3 px-6 rounded-2xl flex items-center gap-2 hover:bg-sky-500/20 transition-all font-bold text-sm"
+                        >
+                            <MapPin size={18} /> Get Local Weather Data
+                        </button>
+                        <button 
+                            onClick={() => setShowManualLogForm(true)} 
+                            className="bg-purple-500/10 border border-purple-500/30 text-purple-400 py-3 px-6 rounded-2xl flex items-center gap-2 hover:bg-purple-500/20 transition-all font-bold text-sm"
+                        >
+                            <ClipboardList size={18} /> Manual Soil Kit Entry
+                        </button>
+                    </div>
+                )}
             </header>
 
             <AnimatePresence>
+                {showWeatherForm && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                            className="glass p-8 max-w-md w-full relative border border-white/10"
+                        >
+                            <button onClick={() => setShowWeatherForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24} /></button>
+                            <h2 className="text-2xl font-black mb-6 flex items-center gap-2"><MapPin className="text-sky-400" /> Location-based Weather</h2>
+                            <p className="text-sm text-slate-400 mb-6">Enter your farm's location (e.g. "Karnal", "Pune") to fetch real-time weather and estimate soil moisture automatically.</p>
+                            <form onSubmit={handleFetchWeather} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-1">City or District</label>
+                                    <input required type="text" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-sky-500" placeholder="e.g. Karnal" value={weatherLoc} onChange={e => setWeatherLoc(e.target.value)} />
+                                </div>
+                                <button type="submit" className="w-full bg-sky-500 text-white py-4 rounded-xl mt-4 font-black hover:bg-sky-600 transition-colors">Fetch & Log Data</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+
+                {showManualLogForm && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                            className="glass p-8 max-w-md w-full relative border border-white/10 max-h-[90vh] overflow-y-auto"
+                        >
+                            <button onClick={() => setShowManualLogForm(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24} /></button>
+                            <h2 className="text-2xl font-black mb-6 flex items-center gap-2"><ClipboardList className="text-purple-400" /> Manual Field Data</h2>
+                            <p className="text-sm text-slate-400 mb-6">Enter the exact readings from your physical soil testing kit.</p>
+                            <form onSubmit={handleManualLog} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Soil pH (0-14)</label>
+                                        <input required type="number" step="0.1" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.soilPh} onChange={e => setManualLog({...manualLog, soilPh: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Moisture (%)</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.moisture} onChange={e => setManualLog({...manualLog, moisture: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Temperature (°C)</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.temperature} onChange={e => setManualLog({...manualLog, temperature: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Humidity (%)</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.humidity} onChange={e => setManualLog({...manualLog, humidity: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Nitrogen</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.n} onChange={e => setManualLog({...manualLog, n: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Phosphorus</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.p} onChange={e => setManualLog({...manualLog, p: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-400 mb-1">Potassium</label>
+                                        <input required type="number" className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white" value={manualLog.k} onChange={e => setManualLog({...manualLog, k: e.target.value})} />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-purple-500 text-white py-4 rounded-xl mt-4 font-black hover:bg-purple-600 transition-colors">Log Soil Data</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+
                 {showJobForm && (
                     <motion.div 
                         initial={{ opacity: 0 }}
