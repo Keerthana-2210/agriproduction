@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import FarmingChatbot from './components/FarmingChatbot';
+import ProfitSimulator from './components/ProfitSimulator';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,8 +20,10 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profit" element={<div className="pt-24"><ProfitSimulator /></div>} />
           </Routes>
         </main>
+        <FarmingChatbot />
       </div>
     </Router>
   );

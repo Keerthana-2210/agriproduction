@@ -39,6 +39,9 @@ const Navbar = () => {
                                 <LayoutDashboard size={20} />
                                 Dashboard
                             </Link>
+                            <Link to="/profit" className="text-slate-300 hover:text-emerald-400 font-medium transition-colors">
+                                Profit Simulator
+                            </Link>
                             <div className="h-6 w-px bg-white/10 mx-2" />
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10">

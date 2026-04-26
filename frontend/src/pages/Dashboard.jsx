@@ -579,7 +579,6 @@ const Dashboard = () => {
                 )}
             </AnimatePresence>
 
-            <FarmingChatbot />
         </div>
     );
 };
