@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import SensorChart from '../components/SensorChart';
+import ProfitSimulator from '../components/ProfitSimulator';
+import FarmingChatbot from '../components/FarmingChatbot';
 import { Activity, Briefcase, TrendingUp, Droplets, Thermometer, Wind, AlertCircle, Info, Sparkles, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Dashboard = () => {
-    const { user } = useAuth();
+    const { user, updateProfile } = useAuth();
     const [sensorData, setSensorData] = useState([]);
     const [jobs, setJobs] = useState([]);
     const [prediction, setPrediction] = useState(null);
@@ -15,9 +17,13 @@ const Dashboard = () => {
     const [editingJobId, setEditingJobId] = useState(null);
     const [jobForm, setJobForm] = useState({ title: '', description: '', location: '', salary: '', type: 'Harvesting', contact: '' });
     const [loading, setLoading] = useState(true);
+    const [nearbyOnly, setNearbyOnly] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
+    const [profileLoc, setProfileLoc] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!user) return;
             try {
                 if (user.role === 'farmer') {
                     const res = await axios.get('http://localhost:5000/api/sensors');
@@ -35,7 +41,7 @@ const Dashboard = () => {
             }
         };
         fetchData();
-    }, [user.role]);
+    }, [user]);
 
     const handlePredict = async () => {
         if (sensorData.length === 0) return;
@@ -107,7 +113,17 @@ const Dashboard = () => {
         }
     };
 
-    if (loading) return (
+    const handleProfileUpdate = async (e) => {
+        e.preventDefault();
+        try {
+            await updateProfile(user.id || user._id, profileLoc);
+            setShowProfile(false);
+        } catch (err) {
+            console.error('Error updating profile', err);
+        }
+    };
+
+    if (loading || !user) return (
         <div className="flex items-center justify-center min-h-[60vh]">
             <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-slow-spin shadow-[0_0_30px_rgba(16,185,129,0.3)]" />
         </div>
@@ -347,6 +363,10 @@ const Dashboard = () => {
                         </div>
                     </div>
 
+                    <div className="lg:col-span-12 mt-6">
+                        <ProfitSimulator />
+                    </div>
+
                     <div className="lg:col-span-12 mt-8">
                         <h3 className="text-2xl font-black mb-6 flex items-center gap-3">
                             <Briefcase size={28} className="text-blue-500" />
@@ -397,44 +417,169 @@ const Dashboard = () => {
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {jobs.map((job, idx) => (
-                        <motion.div 
-                            key={job._id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            whileHover={{ y: -8 }}
-                            className="glass p-10 flex flex-col border-white/5 hover:border-emerald-500/40 transition-all group bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl"
-                        >
-                            <div className="flex justify-between items-start mb-8">
-                                <div className="p-4 bg-emerald-500/10 rounded-3xl text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                                    <Briefcase size={28} />
-                                </div>
-                                <span className="bg-emerald-500/10 text-emerald-400 px-5 py-2 rounded-full text-xs font-black tracking-widest uppercase border border-emerald-500/20">
-                                    {job.type}
-                                </span>
-                            </div>
-                            <h3 className="text-3xl font-black mb-4 tracking-tight">{job.title}</h3>
-                            <p className="text-slate-400 mb-10 line-clamp-3 leading-relaxed text-lg">{job.description}</p>
-                            <div className="flex justify-between items-center mt-auto pt-8 border-t border-white/10">
-                                <div>
-                                    <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Package</span>
-                                    <span className="text-2xl font-black text-emerald-400">{job.salary}</span>
-                                    {job.contact && <span className="block text-xs mt-1 text-slate-400 font-bold"><span className="text-slate-500 font-normal">Contact:</span> {job.contact}</span>}
-                                </div>
+                <div className="space-y-8">
+                    {/* Labourer Dashboard Header & Toggles */}
+                    <div className="flex flex-col md:flex-row justify-between items-center bg-slate-900/50 p-6 rounded-3xl border border-white/5 shadow-inner">
+                        <div>
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <Briefcase size={28} className="text-emerald-500" /> 
+                                Local Farm Work
+                            </h2>
+                            <p className="text-sm text-slate-400 mt-1 flex items-center gap-3">
+                                Your Location: <span className="text-emerald-400 font-bold tracking-wide">{user.location || "Rampur, Karnal"}</span>
                                 <button 
-                                    onClick={() => handleApply(job._id)}
-                                    disabled={job.applicants?.some(a => (a._id || a) === user.id)}
-                                    className={`px-8 py-3 rounded-2xl font-black shadow-lg transition-all ${job.applicants?.some(a => (a._id || a) === user.id) ? 'bg-slate-700/50 text-slate-400 cursor-not-allowed' : 'btn-primary shadow-emerald-500/20 hover:-translate-y-1'}`}
+                                    onClick={() => {
+                                        setProfileLoc(user.location || "Rampur, Karnal");
+                                        setShowProfile(true);
+                                    }}
+                                    className="text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20 px-3 py-1 rounded-full font-black uppercase tracking-widest"
                                 >
-                                    {job.applicants?.some(a => (a._id || a) === user.id) ? 'Applied' : 'Apply'}
+                                    Edit Settings
                                 </button>
-                            </div>
-                        </motion.div>
-                    ))}
+                            </p>
+                        </div>
+                        
+                        <div className="mt-4 md:mt-0 flex items-center gap-4 bg-slate-800/80 p-2 rounded-2xl border border-white/5">
+                            <span className="text-sm font-bold text-slate-300 pl-2">Nearby Jobs Only</span>
+                            <button 
+                                onClick={() => setNearbyOnly(!nearbyOnly)}
+                                className={`w-14 h-8 rounded-full relative transition-colors duration-300 outline-none ${nearbyOnly ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                            >
+                                <motion.div 
+                                    className="w-6 h-6 bg-white rounded-full absolute top-1 shadow-md"
+                                    animate={{ left: nearbyOnly ? '30px' : '4px' }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {jobs.map((j) => {
+                            const jobLoc = j.location ? j.location.toLowerCase() : '';
+                            const uLoc = (user.location || "Rampur, Karnal").toLowerCase();
+                            let proximity = { label: 'Far', score: 1, color: 'text-red-400', bg: 'bg-red-500/10', circle: 'bg-red-500' };
+                            
+                            const village = uLoc.split(',')[0]?.trim();
+                            const district = uLoc.split(',')[1]?.trim() || 'karnal';
+
+                            if (jobLoc.includes(village) || jobLoc === uLoc) {
+                                proximity = { label: 'Very Near', score: 3, color: 'text-emerald-400', bg: 'bg-emerald-500/10', circle: 'bg-emerald-500' };
+                            } else if (jobLoc.includes(district)) {
+                                proximity = { label: 'Near', score: 2, color: 'text-amber-400', bg: 'bg-amber-500/10', circle: 'bg-amber-500' };
+                            }
+
+                            return { ...j, proximity };
+                        })
+                        .filter(j => nearbyOnly ? j.proximity.score >= 2 : true)
+                        .sort((a, b) => b.proximity.score - a.proximity.score) // Closest jobs first
+                        .map((job, idx) => (
+                            <motion.div 
+                                key={job._id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.1 }}
+                                whileHover={{ y: -8 }}
+                                className={`glass p-10 flex flex-col border border-white/5 hover:border-${job.proximity.color.split('-')[1]}-500/40 transition-all group bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl relative overflow-hidden`}
+                            >
+                                {/* Recommended Badge logic: If it pays well and is very near */}
+                                {job.proximity.score === 3 && job.salary.includes('600') && (
+                                    <div className="absolute -right-12 top-6 bg-emerald-500 text-white font-black text-[10px] py-1 px-12 transform rotate-45 shadow-lg">
+                                        TOP PICK
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className="p-4 bg-emerald-500/10 rounded-3xl text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                                        <Briefcase size={28} />
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <span className="bg-emerald-500/10 text-emerald-400 px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase border border-emerald-500/20">
+                                            {job.type}
+                                        </span>
+                                        {/* Proximity Pill */}
+                                        <span className={`px-4 py-1 rounded-full text-xs font-black tracking-widest uppercase border border-white/5 ${job.proximity.bg} ${job.proximity.color} flex items-center gap-2`}>
+                                            <span className={`w-2 h-2 rounded-full ${job.proximity.circle} animate-pulse`} />
+                                            {job.proximity.label}
+                                        </span>
+                                    </div>
+                                </div>
+                                <h3 className="text-3xl font-black mb-2 tracking-tight">{job.title}</h3>
+                                <p className="text-slate-400 text-sm font-bold mb-6">📍 {job.location || 'Unknown Location'}</p>
+                                
+                                <p className="text-slate-500 mb-8 line-clamp-3 leading-relaxed text-sm flex-1">{job.description}</p>
+                                
+                                <div className="flex justify-between items-center mt-auto pt-6 border-t border-white/10">
+                                    <div>
+                                        <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Wages</span>
+                                        <span className="text-2xl font-black text-emerald-400">{job.salary}</span>
+                                        {job.contact && <span className="block text-[10px] mt-1 text-slate-400 font-bold bg-slate-800 rounded px-2 py-1"><span className="text-slate-500 font-normal">☎</span> {job.contact}</span>}
+                                    </div>
+                                    <button 
+                                        onClick={() => handleApply(job._id)}
+                                        disabled={job.applicants?.some(a => (a._id || a) === user.id)}
+                                        className={`px-8 py-3 rounded-2xl font-black shadow-lg transition-all ${job.applicants?.some(a => (a._id || a) === user.id) ? 'bg-slate-700/50 text-slate-400 cursor-not-allowed' : 'btn-primary shadow-emerald-500/20 hover:-translate-y-1'}`}
+                                    >
+                                        {job.applicants?.some(a => (a._id || a) === user.id) ? 'Applied' : 'Apply'}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
                 </div>
             )}
+            
+            {/* Profile Settings Modal */}
+            <AnimatePresence>
+                {showProfile && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                            onClick={() => setShowProfile(false)}
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="bg-slate-900 border border-white/10 p-8 rounded-3xl z-10 w-full max-w-md shadow-2xl relative"
+                        >
+                            <button 
+                                onClick={() => setShowProfile(false)}
+                                className="absolute right-6 top-6 text-slate-400 hover:text-white transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+
+                            <h2 className="text-2xl font-black text-white mb-2">Profile Settings</h2>
+                            <p className="text-sm text-slate-400 mb-8">Update your saved location to find jobs immediately near you.</p>
+
+                            <form onSubmit={handleProfileUpdate} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Base Location (Village, District)</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                        placeholder="e.g. Rampur, Karnal"
+                                        value={profileLoc}
+                                        onChange={(e) => setProfileLoc(e.target.value)}
+                                        required
+                                    />
+                                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                        <Info size={12} /> Format exactly as "Village, District" for best results
+                                    </p>
+                                </div>
+                                
+                                <button type="submit" className="w-full btn-primary py-4 rounded-xl font-black shadow-lg shadow-emerald-500/20 hover:-translate-y-1 transition-transform">
+                                    Save Profile Settings
+                                </button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <FarmingChatbot />
         </div>
     );
 };
